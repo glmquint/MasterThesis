@@ -1,0 +1,155 @@
+\chapter{CPE Matching an asset inventory}
+By CPE Matching we refer to the challenge of accurately identifying and correlating software, hardware, or operating system products of an asset inventory using standardized CPE (Common Platform Enumeration) names.
+
+It should not be confused with the CPE 2.3 Name Matching Specification, which is talked about in \ref{subsec:name-matching-spec}
+
+\section{The naming problem}
+Different vendors or tools use inconsistent naming conventions for the same product.
+Software versions are represented differently (e.g., "10.0" vs. "10.0.0").
+There is a high variability in how wildcards and partial matches are handled.
+Also, it is difficult to match vendor and product names due to spelling variations (e.g., "Microsoft Corporation" vs. "Microsoft" vs "MS"), and there are ambiguities in distinguishing different product editions or platforms.
+
+\section{CPE}
+
+Common Platform Enumeration (CPE) is a standardized method of describing and identifying classes of applications, operating systems, and hardware devices present among an enterprise's computing assets. CPE does not identify unique instantiations of products on systems, such as the installation of XYZ Visualizer Enterprise Suite 4.2.3 with serial number Q472B987P113. Rather, CPE identifies abstract classes of products, such as XYZ Visualizer Enterprise Suite 4.2.3, XYZ Visualizer Enterprise Suite (all versions), or XYZ Visualizer (all variations).
+
+IT management tools can collect information about installed products, identifying these products using their CPE names, and then use this standardized information to help make fully or partially automated decisions regarding the assets. For example, identifying the presence of XYZ Visualizer Enterprise Suite could trigger a vulnerability management tool to check the system for known vulnerabilities in the software, and also trigger a configuration management tool to verify that the software is configured securely in accordance with the organization's policies.
+
+The current version of CPE is 2.3. CPE 2.3 is defined through a set of specifications in a stack-based model, where capabilities are based on simpler, more narrowly defined elements that are specified lower in the stack. This design opens opportunities for innovation, as novel capabilities can be defined by combining only the needed elements, and the impacts of change can be better compartmentalized and managed.
+
+\autoref{fig:cpe_stack} shows the current CPE 2.3 stack, with the most fundamental layer (Naming) at the bottom. Each higher layer builds on top of the layers below it.
+
+\begin{figure}
+    \centering
+    \includegraphics[width= 0.8\textwidth]{images/Related_Works/cpe_stack.png}
+    \caption{CPE stack} 
+    \label{fig:cpe_stack}
+\end{figure}
+
+The CPE format is based upon the generic syntax for Uniform Resource Identifiers (URI). The CPE Product Dictionary provides an agreed upon list of official CPE names. The dictionary is provided in XML format and is available to the general public. The CPE Dictionary is hosted and maintained at NIST, and may be used by nongovernmental organizations on a voluntary basis.
+
+The 2.3 version of CPE has the following format:
+
+\begin{verbatim}
+    cpe:<cpe_version>:<part>:<vendor>:<product>:<version>:<update>:
+    <edition>:<language>:<sw_edition>:<target_sw>:<target_hw>:<other>
+\end{verbatim}
+
+CPE allows the use of wildcards to perform grouping expressions, for example:
+
+\begin{verbatim}
+cpe:2.3:a:ntp:ntp:4.2.8:p3:*:*:*:*:*:*
+cpe:2.3:o:microsoft:windows_7:-:sp2:*:*:*:*:*:*
+cpe:2.3:a:microsoft:internet_explorer:8.0.6001:beta:*:*:*:*:*:*
+\end{verbatim}
+
+A brief overview of the four CPE v2.3 specifications are included below
+
+\subsection{Naming}
+\url{http://csrc.nist.gov/publications/nistir/ir7695/NISTIR-7695-CPE-Naming.pdf}
+The CPE 2.3 Naming Specification defines standardized methods for assigning names to IT product classes. An example is the following name representing Microsoft Internet Explorer 8.0.6001 Beta:
+\begin{verbatim}
+wfn:[part="a",vendor="microsoft",product="internet_explorer",
+version="8\.0\.6001",update="beta"]
+\end{verbatim}
+This method of naming is known as a well-formed CPE name (WFN). It is an abstract logical construction. The CPE Naming Specification defines procedures for binding WFNs to machine-readable encodings (a CPE URI), as well as unbinding those encodings back to WFNs.
+
+We should be particularly careful on what this specification is not about.
+Section 5.2 enumerates a list of aspects that are considered outside the scope of the CPE Naming specification. There, we also find:
+\begin{quote}
+    "Defining procedures and guidelines for assigning “correct” or “valid” values to attributes of product descriptions or identifiers"
+\end{quote}
+
+It is clear that the specification cannot specify the exact content of each WFN's field for each software, but instead defines what it should conceptually contain.
+For example, here is how values for the Product field are defined (Section 5.3.3.3 of the reference document):
+\begin{quote}
+"Values for this attribute SHOULD describe or identify the most common and recognizable title or name of the product. Values for this attribute SHOULD be selected from an attribute-specific valid-values list, which MAY be defined by other specifications that utilize this specification. Any character string meeting the requirements for WFNs (cf. 5.3.2) MAY be specified as the value of the attribute."
+\end{quote}
+This still leaves a very high margin of interpretation on what constitutes the best identifier for each field.
+
+\subsection{Matching}
+\label{subsec:name-matching-spec}
+\url{http://csrc.nist.gov/publications/nistir/ir7696/NISTIR-7696-CPE-Matching.pdf}
+The CPE 2.3 Name Matching Specification defines a method for conducting a one-to-one comparison of a source CPE name to a target CPE name. By logically comparing CPE names as sets of values, CPE Name Matching methods can determine if common set relations hold. For example, CPE Name Matching can determine if the source and target names are equal, if one of the names is a subset of the other, or if the names are disjoint.
+
+One example of the value of CPE Name Matching is in determining if a particular product is installed on a system. Suppose that an organization is identifying which of its systems have any variation of Microsoft Internet Explorer 8 installed. This could be represented with the following well-formed CPE name (WFN):
+
+\begin{verbatim}
+wfn:[part="a",vendor="microsoft",product="internet_explorer",
+version="8\.*",update=ANY,edition=ANY,language=ANY]
+\end{verbatim}
+
+An asset management tool could collect information on the software installed on a system and compare its Internet Explorer installation characteristics to the WFN above. Suppose that the WFN for a particular installed instance of Internet Explorer was reported as:
+\begin{verbatim}
+wfn:[part="a",vendor="microsoft",product="internet_explorer",
+version="8\.0\.6001",update=NA,edition=NA,language="en\-us"]
+\end{verbatim}
+
+Using these two example WFNs, CPE Name Matching methods perform a pairwise comparison of attribute values in the first (source) WFN to those in the second (target) WFN, yielding a list of the set relations between each pair of attributes (e.g., equal, superset). This list of comparison results is then assessed, leading to a determination that the first WFN represents a superset of the second WFN. This can be interpreted to mean that the system being examined does indeed have a variation of Microsoft Internet Explorer 8 installed.
+
+Another attribute comparison example, which uses a different software product, is shown in \autoref{tab:attribute-comparison-example} and displays the relation set obtained for each pair of attributes.
+
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{c|c|c|c|c|c|c}
+        \textbf{Attribute} & \textbf{Part} & \textbf{Vendor} & \textbf{Product} & \textbf{Version} & \textbf{Update} & \textbf{Edition}\\
+        \hline
+        \textbf{Source Value} & a & Adobe & ANY & 9.* & ANY & PalmOS\\
+        \hline 
+        \textbf{Target Value} & a & ANY & Reader & 9.3.2 & NA & NA\\
+        \hline
+        \textbf{Relation Set} & $=$ & $\subset$ & $\supset$ & $\supset$ & $\supset$ & $\ne$\\
+    \end{tabular}
+    \caption{Attribute Comparison Example}
+    \label{tab:attribute-comparison-example}
+\end{table}
+
+After obtaining the list of attribute relations, we follow the schema presented in \autoref{tab:name-comparison-relations}
+
+\begin{table}[h!]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{l|l}
+        \textbf{If Attribute Relation Set =} & \textbf{Then Name Comparison Relation}\\
+        \hline
+        If any attribute relation is DISJOINT ($\ne$) & Then CPE name relation is DISJOINT ($\ne$)\\
+        \hline
+        If all attribute relations are EQUAL (=) & Then CPE name relation is EQUAL (=)\\
+        \hline
+        If all attribute relations are SUBSET ($\subset$) & Then CPE name relation is SUBSET ($\subset$)\\
+        \hline
+        If all attribute relations are SUPERSET ($\supset$) or EQUAL (=) & Then CPE name relation is SUPERSET ($\supset$)\\
+    \end{tabular}
+    }
+    \caption{Required CPE Name Comparison Relations}
+    \label{tab:name-comparison-relations}
+\end{table}
+In this example, we can assess that the source and target CPEs are DISJOINT.
+Given the ambiguities derived by the Naming specification, NIST cannot define a rigorous way to perform name matching across all existing software classes and instead leaves it as an implementation detail. In practice, a simple string comparison is not sufficient to assess if two names correspond to the same value because what is actually important is the semantic relation between two names. Taken from section 5 of the official specification document:
+\begin{quote}
+    "CPE’s developers have chosen not to define a single notion of “name match” because experience has shown that name matching distinctions are often use-case dependent. For example, when a source WFN is generated from the sparse results of a non-authenticated asset inventory tool, matching of only one or two CPE attribute values may constitute a meaningful “name match” for some applications. In contrast, when both the source and target WFNs are fully specified, common names in an authoritative CPE dictionary, it may be reasonable to decide that a “name match” requires an exact match of all CPE attribute values in both names. In order to remain flexible enough [...] the CPE Name Matching specification leaves the majority of decisions about what constitutes a “name match” to CPE implementers at design time"
+\end{quote}
+
+\subsection{Dictionary}
+\url{http://csrc.nist.gov/publications/nistir/ir7697/NISTIR-7697-CPE-Dictionary.pdf}
+The CPE 2.3 Dictionary Specification defines a standardized method for creating and managing CPE dictionaries. A dictionary is a repository of CPE names and metadata associated with the names. Each CPE name in the dictionary identifies a single class of IT product in the world. The word "class" here signifies that the object identified is not a physical instantiation of a product on a system, but rather the abstract model of that product. Although organizations may use a CPE name to represent either a single product class or a set of multiple product classes, a CPE dictionary stores only bound forms of well-formed CPE names (WFNs) that identify a single product class, not a set of product classes. These single product-class WFNs in bound form are referred to as identifier names.
+
+NIST hosts the Official CPE Dictionary, which is the authoritative repository of identifier names
+
+\subsection{Applicability Language}
+\url{http://csrc.nist.gov/publications/nistir/ir7698/NISTIR-7698-CPE-Language.pdf}
+The CPE 2.3 Applicability Language Specification defines a standardized way to describe IT platforms by forming complex logical expressions out of individual CPE names and references to checks. For example, one could use the CPE 2.3 Applicability Language to combine the CPE name for an operating system (such as Microsoft Windows XP), the CPE name for an application running on that operating system (such as Microsoft Office 2007), and a reference to a check for a particular value of a certain configuration setting (such as the wireless network card being enabled in the operating system). These logical expressions are called applicability statements, because they are used to designate which platforms particular guidance, policies, etc. apply to. Applicability statements can be used by tools to determine whether a target system is an instance of a particular platform.
+
+\section{Matcher requirements}
+
+The increasing prevalence of complex software across economic sectors has led modern Security Operations Centers (SOCs) needing to manage multiple clients simultaneously. Each client’s asset inventory may range from a few workstations to thousands of virtual machines, resulting in a substantial volume of software installations requiring analysis.
+
+Furthermore, the Common Platform Enumeration (CPE) database is continuously evolving. New software products and versions are released daily, while vendor names frequently change due to acquisitions or rebranding. Consequently, maintaining an up-to-date CPE representation of software inventories is essential. To ensure accuracy, the entire software stack should be analyzed before every update, which occurs every 24 hours.
+
+A robust matching solution must efficiently process large software inventories while accommodating heterogeneous data sources. Different clients may utilize distinct inventory tools, often employing various file formats. Thus, the matching approach should be agnostic to data formats and capable of handling noisy input data through appropriate data-cleaning techniques.
+
+Given the complexity and scale of CPE matching, automation is critical. Manual matching is time-consuming, requires specialized expertise, and diverts resources from other cybersecurity tasks. While fully automated solutions remain imperfect, a hybrid approach where automated matching is supplemented by human verification can significantly enhance efficiency.
+
+Moreover, the system should provide transparency in its decision-making process, allowing users to understand why a particular match was made. Designing such a mechanism requires acknowledging the probability of errors and equipping users with feedback and tuning options to refine results as needed.
+
+This study takes into consideration the experience of consorzio Metis, which embodies the SOC and CSIRT role for multiple entities, including \textit{Regione Toscana}, \textit{Servizio Sanitario Regionale} and \textit{Azienda Ospedaliero-Universitaria Meyer}.

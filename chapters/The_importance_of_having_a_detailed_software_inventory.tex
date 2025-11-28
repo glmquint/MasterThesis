@@ -1,0 +1,28 @@
+\chapter{Introduction}
+\section{The importance of having a detailed software inventory}
+The world's cybersecurity landscape has seen a dramatic transformation in recent years, and supply chain attacks have emerged as one of the most significant threats to organizational security. 
+
+These sophisticated attacks exploit the complex interconnections within modern digital infrastructure, targeting vulnerabilities in third-party vendors, software dependencies, and service providers to compromise primary targets through trusted channels.
+The scale and frequency of supply chain attacks have increased at an alarming rate. 
+The 2023 Data Breach report by ITRC \cite{noauthor_2023-annual-data-breach-report_2024} reveals that  organizations impacted by such attacks have increased by more than 2,600\% since 2018, with affected entities rising by 15\% in 2023 alone, affecting over 54 million victims. 
+
+Juniper Research estimates that, without a paradigm shift in software supply chain cybersecurity management, cyberattacks targeting software supply chains will cost the world economy an estimated \$80.6 billion in lost revenue and damages annually by 2026 \cite{juniper_vulnerable-software-supply-chains-are--multi-billion-dollar-problem_2023}.
+
+Several high-profile incidents have highlighted the devastating potential of supply chain attacks. The \href{https://www.darkreading.com/vulnerabilities-threats/rising-tide-of-software-supply-chain-attacks}{2020 SolarWinds breach} represented a critical moment in supply chain security, where compromised software updates affected over 18,000 organizations, demonstrating the cascading impact of such attacks. More recent incidents, such as the \href{https://securityaffairs.com/144411/apt/3cx-supply-chain-attack-cryptocurrency.html}{2023 3CX Phone System compromise}, have further emphasized vulnerabilities in trusted software distribution channels. The \href{https://www.cisa.gov/news-events/alerts/2024/03/29/reported-supply-chain-compromise-affecting-xz-utils-data-compression-library-cve-2024-3094}{discovery of a malicious backdoor in XZ Utils} (versions 5.6.0 and 5.6.1) in March 2024 represented another critical incident, affecting numerous Linux distributions and allowing unauthorized command execution on compromised systems.
+
+The increasing prevalence of these attacks can be attributed to several structural vulnerabilities in modern digital infrastructure. Open-source software components, while essential for contemporary software development, have become a significant vector for supply chain attacks, with \href{https://outshift.cisco.com/blog/top-10-supply-chain-attacks}{research} indicating that 64\% of affected companies attribute their compromises to open-source dependencies. 
+
+Supply chain attacks have increased in intensity within all major strategic sectors, including Automotive, Consumer Electronic Devices, Finance, Government, Healthcare and Smart Cities. Revenue losses, split by sector, have been estimated by Juniper Research \cite{juniper_vulnerable-software-supply-chains-are--multi-billion-dollar-problem_2023} and are reported in \autoref{fig:revenue-losses-sca}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.7\linewidth]{images/The_importance_of_having_a_detailed_software_inventory/Revenue Losses Attributable to Supply Chain Cyberattack.png}
+    \caption{Revenue Losses Attributable to Supply Chain Cyber attacks (\$billion), Split by Sector, 2021-2026, as projected by Juniper Research in 2023}
+    \label{fig:revenue-losses-sca}
+\end{figure}
+
+Industry analysts, including \href{https://www.gartner.com/en/supply-chain/research/all-research}{Gartner} , project a concerning trajectory for supply chain security. Their research suggests that by 2025, approximately 45\% of organizations worldwide will have experienced attacks on their software supply chains, representing a three-fold increase from 2021 levels. This projection underscores the urgent need for improved security measures and comprehensive supply chain risk management strategies.
+
+\section{Risk management through software identification}
+The European Union has significantly strengthened its cybersecurity framework with the introduction of the NIS2 Directive (Directive (EU) 2022/2555), which came into force on January 16, 2023, replacing the original NIS Directive. This updated directive aims to establish a high common level of cybersecurity across member states by setting stricter security requirements for a broader range of essential and important entities. A critical aspect of NIS2 is the emphasis on comprehensive risk management measures, which include the need for robust asset management.This entails maintaining an up-to-date inventory of all network and information systems,  both hardware and software components. Such detailed inventories are vital for identifying vulnerabilities, managing risks, and ensuring timely responses to incidents. Given the complexity and scale of modern IT environments, automating software identification becomes essential. Automation facilitates the continuous monitoring and cataloging of software assets, ensuring that organizations can
+maintain accurate software inventories, identify vulnerabilities quickly, and ensure compliance with NIS2 requirements. 

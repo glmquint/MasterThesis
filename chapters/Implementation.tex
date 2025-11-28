@@ -1,0 +1,170 @@
+\chapter{Implementation}
+\section{Workflow as a Continuous Process}
+
+In the ever-changing landscape of cybersecurity, the efficacy of any vulnerability management system depends on its ability to adapt and remain current. 
+Static approaches to threat detection and mitigation are inherently vulnerable to obsolescence when facing rapidly evolving threats, daily discoveries of new vulnerabilities, and the constant flux of software deployments within organizational infrastructures.
+To deliver truly pertinent and timely CVE alerts, the developed system is developed around a continuous process. 
+This ensures that the foundational CPE inventory, upon which the alerting system rests, remains constantly accurate and relevant.
+This, in turn, requires the system design to take a particular focus on the raw performance achievable, as this will be the main factor in determining the system's ability to keep up with the continuous flow of updates.
+
+\subsection{Two Streams of Continuous Updates: CPE Evolution and Inventory Dynamics}
+
+The persistent operation of the system is carefully orchestrated by two distinct categories of input events: CPE updates and Inventory updates.
+
+A CPE update event signifies a transformation within the corpus of Common Platform Enumerations itself. 
+This category encompasses two critical dimensions of CPE change: the creation of new CPEs and the modification or deprecation of existing ones.
+
+CPE updates are sourced from the authoritative NIST's NVD CPE database, recognized as the standard reference for CPE information. 
+Continuous ingestion of these updates ensures the system's foundational knowledge remains aligned with the established standards and best practices in CPE nomenclature.
+
+In contrast to CPE updates, which address the evolution of the classification standard, inventory update events originate from client systems and represent changes within their specific technological environments. 
+These events reflect modifications to the software and hardware assets actively deployed within a client's infrastructure. Inventory updates are triggered by an initial inventory submission or a subsequent inventory modification.
+
+Client environments are dynamic, undergoing continuous changes through software deployments, upgrades, and decommissioning processes. Regular or event-triggered inventory scans from client systems generate inventory updates, reflecting these operational changes. These updates ensure the CPE inventory accurately represents the current software and hardware landscape within each client's domain, enabling the delivery of targeted and relevant CVE alerts.
+
+The continuous processing of both CPE and inventory update events results in a dynamically maintained CPE inventory. 
+By maintaining an accurate and up-to-date representation of both available CPEs and client-specific software deployments, the system facilitates the generation of vulnerability alerts characterized by:
+
+\begin{itemize}
+    \item Timeliness: Alerts are generated based on the most recent vulnerability information and the latest CPE definitions, ensuring prompt notification of relevant threats.
+    \item Relevance: Alerts are precisely mapped to the software deployed within each client's environment, minimizing extraneous alerts and focusing on actionable vulnerabilities.
+    \item Actionability: By providing targeted and relevant alerts, the system enables users to effectively prioritize and address vulnerabilities impacting their specific technology stacks, thereby enhancing their overall security posture.
+\end{itemize}
+
+For a visual representation of this continuous workflow and the interaction of CPE and inventory update processes, a BPMN diagram was developed and is shown in \autoref{fig:process-bpmn}. 
+This diagram provides a comprehensive overview of the system's operational flow and emphasizes its continuous and iterative nature.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\paperheight, angle=90]{images/Implementation/CPE-matcher}
+
+    %\includesvg{images/Implementation/CPE-matcher.svg}
+    \caption{BPMN diagram of the CPE matcher process} 
+    \label{fig:process-bpmn}
+\end{figure}
+
+\section{Python libraries}
+% Let's analyze some existing libraries
+% As of today, rank-bm25 has only the following versions implemented
+Okapi BM25 is a well known algorithm that has many implementations in different languages but not many allow for more advanced custom usages.
+We will present some existing alternatives for the python programming language.
+
+The main implementation is a library called \texttt{rank-bm25} which only offers the following flavors of the algorithm:
+\begin{itemize}
+    \item okapi bm25
+        The default algorithm
+    \item bm25L
+        This version addresses the problem observed by LV \& Zhai that the document length normalization of BM25 ($L_d/L_{avg}$) unfairly prefers shorter documents to longer ones
+    \item bm25+
+        A general solution proposed by LV \& Zhai which lower-bounds the contribution of a single term occurrence: this solves the penalization of long documents which occurs not only in BM25 but other ranking functions too.
+\end{itemize}
+
+Another implementation comes from the scikit-learn library.
+Sklearn only implements \texttt{tfvectorize} which can be used as a starting point to implement any tf-based algorithm, but any more advanced matching algorithm is left to the user to be developed.
+\section{Custom implementation}
+The context in which the information retrieval algorithm is used is very specific and requires a custom implementation to fully exploit some characteristics of the data.
+For example, given the grouping expressions capabilities of CPEs, it would be beneficial if the ranking algorithm could perform part of those grouping operations to further refine the returned results. Wildcards, specifically, should be handled in a special way. 
+Also, the required explainability for the final results imposes a more in-depth view of the algorithm's inner workings.
+As we have seen, some implementation of BM25 already exist online, but none that implement BM25F with the aforementioned requirements.
+
+Regarding the performance objectives, we are in the specific case where a bunch of queries should be perform together in large batches.
+% Each query can be performed separately, so the system would gratly benefit frmo parallelism acceleration
+We can easily observe that each query can be executed independently from each other, and so the system would greatly benefit from any form for parallelism acceleration.
+Therefore, Golang has been chosen for its relative straight forward use of goroutines.
+
+Goroutines are lightweight, user-space threads in the Go programming language, designed to enable efficient concurrency. Unlike traditional operating system threads, goroutines have minimal overhead, allowing the execution of millions of them within a single Go application. They are created using the \texttt{go} keyword, which initiates a function as a separate concurrent execution unit. The Go runtime manages their scheduling, dynamically multiplexing them onto available OS threads to optimize performance and resource utilization.
+
+Goroutines facilitate parallelism by allowing multiple tasks to execute simultaneously, improving computational efficiency, particularly in multi-core architectures. They communicate via channels, which provide a safe and structured mechanism for inter-goroutine synchronization and data exchange, mitigating race conditions and deadlocks. Their lightweight nature and efficient scheduling make goroutines a powerful tool for writing scalable and parallel code with minimal complexity.
+
+% The standard structure of CPEs allows to make some assumptions on data representation 
+
+It can also be noted that NIST's CPE collection is large but not unreasonably huge. As of February 2025, the total number of non-deprecated CPEs is slightly under 1.3 million and the whole list of CPEs with their titles can fit in a 124MB plain-text file.
+Therefore, the whole retrieval process can be performed in memory, without an external db. This removes the need to implement a caching mechanism to obtain appreciable performances and generally simplifies the overall design.
+
+\section{Core Matcher Development}
+%Local CPE db is created and updated following NIST's workflow guidelines ((TODO: reference))
+The first step in the development of the core matcher is the creation and maintenance of a local CPE database. This database is populated and updated based on data obtained from the National Institute of Standards and Technology (NIST) National Vulnerability Database (NVD) JSON API. The data is retrieved following NIST's guidelines for CPE data management, ensuring consistency and accuracy in the local database. This approach aligns with established best practices for CPE data handling, facilitating efficient access and representation within the system.
+CPEs are then filtered to remove deprecated entries, ensuring that only relevant and up-to-date CPEs are included in the local database. This filtering process is essential for maintaining the accuracy and relevance of the CPE inventory used for matching operations.
+%BM25F matching is done as per theory
+The core matching component of the system is implemented using the BM25F algorithm, as described in \autoref{sec:bm25f}. 
+In particular, we directly use the CPE attributes as document fields, with an additional field for the CPE title. 
+The title of a CPE is a common name for the software product and is always present inside NIST's database, sometimes even with its translation in multiple languages, if available.
+It has been verified that all known CPEs present in the database have an English title.
+
+% Field aggregation is done based on Microsoft's study \cite{robertson_simple_2004}
+Field aggregation is performed based on the improved BM25F algorithm proposed by Robertson et al. \cite{robertson_simple_2004}, as described in \autoref{sec:bm25f}. This includes the $k_1$ and $b$ compensation.
+
+%Goroutine pooling
+To manage concurrency efficiently and optimize resource utilization, goroutine pooling is implemented within the matching service. Goroutine pooling reduces the overhead associated with the frequent creation and destruction of goroutines, enhancing performance and scalability. The implementation comprises two distinct goroutine pools: one dedicated to processing incoming queries and another for handling term processing tasks within each query. This separation of pools allows for granular control over concurrency and resource allocation, ensuring optimal performance under varying workloads.
+%Finally, results are grouped by product-vendor, with internal version sorting: this allows to return the most recent CPE under the one we're looking for, considering the special case of missing ('-') version by default if no version is specified.
+Finally, the matching results are post-processed to refine and organize the result set. Results are grouped primarily based on the product and vendor fields extracted from the matched CPEs, enhancing the clarity and interpretability of the results. Within each product-vendor group, results are further sorted internally according to version information, prioritizing entries with more recent versions in descending order. This version-based sorting ensures that the system returns the most current and relevant CPE entry that is immediately before the one detected when multiple matches are found for the same product and vendor. 
+A specific heuristic is incorporated to handle scenarios where version information is absent in the query. In such cases, CPE entries with a missing version field (represented by '-') are considered as a default match, provided no version-specific matches are identified. This accommodates common user queries that may omit explicit version details while still returning potentially relevant CPE matches.
+
+
+\section{Web app for human disambiguation}
+%Implemented with a backend in go, which calls the core matcher executable, and the preact library as a thin front-end layer 
+The development of a web interface for human disambiguation and relevance feedback is a critical component of the system. This interface enables users to interact with the system, review matching results, and provide feedback to refine the matching process. The web app is designed to be minimal but intuitive, user-friendly, and responsive, facilitating efficient interaction and enhancing user experience.
+The same web application is used for both relevance feedback and manual matching of samples to CPEs, providing a unified interface for these distinct but related tasks.
+
+The web app is implemented using a backend in Go, which communicates with the core matcher executable to perform matching operations. 
+The backend manages the interaction between the user interface and the matching service, handling requests, processing responses, and managing user feedback. 
+The backend is designed to be lightweight, and saves the results that have been analyzed to a document collection handled by MongoDB, a NoSQL database that allows for efficient storage and retrieval of JSON-like documents.
+
+\section{A common format}
+ 
+%Input heterogeneity is solved by defining a minimum common format: pure strings
+%A specific translator should be implemented for each file format
+%As an example, csvs coming frmo both GLPI and Wazuh have been used
+
+%Then a splatter mechanism is used to obtain multiple sample from a single record
+%A sample should have at most one CPE but we allow to have more thn one to incraese the chances of matching the correct one
+
+The system is designed to handle input data heterogeneity by defining a minimum common format for input samples. This common format consists of pure strings, ensuring compatibility with a wide range of input sources and formats. To accommodate diverse input data types, specific translators are implemented to convert various file formats into the common string format. For example, translators are developed to process CSV files exported from different asset inventory systems, such as GLPI and Wazuh, into the common string format. These translators extract relevant information from the input files and convert it into a standardized string representation, enabling seamless integration with the matching system.
+
+This is the only non-automatic part of the system, as it requires a human to define the mapping between the input fields and the common format.
+Although it should be noted that such a procedure should be performed only once for each input source, and the system can then automatically process new input files using the defined mapping.
+
+In case of a csv file, for example, it would be sufficient to concatenate the fields of interest with a separator, such as a comma, to obtain the common format.
+
+The input rows are further processed using a splatter mechanism to generate multiple samples from a single record. 
+It is in fact possible that a single record contains multiple software components, for example by having a common vendor and product name, but a list of installed versions.
+Each sample is designed to contain at most one CPE, although multiple CPEs may be included to increase the likelihood of matching the correct one. This approach enhances the system's flexibility and robustness, enabling it to handle complex input data structures and diverse software naming conventions effectively. By standardizing input data into a common format and implementing a splatter mechanism to generate multiple samples, the system can efficiently process a wide range of input sources and formats, enhancing its usability and adaptability.
+
+Let's take a look at a real-world example of a CSV row, taken from GLPI that could be used as input for the system:
+
+\begin{lstlisting}
+    Product,Entity,Vendor,Versions - Name,Versions - Operating Systems,Number of Installations
+    7zip,REDACTED,Ubuntu,23.01+dfsg-11<br>23.02+dfsg-11<br>23.01+dfsg-11,Ubuntu 24.04 LTS<br>Ubuntu 24.04.1 LTS,3
+\end{lstlisting}
+
+First, we would extract the relevant fields, in this case, the product, vendor, and versions. 
+Then we would concatenate them to obtain the common format:
+\begin{lstlisting}
+    7zip Ubuntu 23.01+dfsg-11<br>23.02+dfsg-11<br>23.01+dfsg-11
+\end{lstlisting}
+
+Finally, we would splatter the record to obtain multiple samples, one for each version:
+\begin{lstlisting}
+    7zip Ubuntu 23.01+dfsg-11
+    7zip Ubuntu 23.02+dfsg-11
+    7zip Ubuntu 23.01+dfsg-11
+\end{lstlisting}
+
+In this case, we would benefit from skipping redundant work, therefore a final filter for duplicates is applied to the samples, and we obtain the final list of samples to be analyzed.
+\begin{lstlisting}
+    7zip Ubuntu 23.01+dfsg-11
+    7zip Ubuntu 23.02+dfsg-11
+\end{lstlisting}
+
+This can be resumed in the following bash script:
+\begin{lstlisting}[language=Bash]
+    awk 'NR>1 {print $$1, $$3, $$4}' FS=',' OFS=' ' glpi.csv \
+    | python3 splatter.py --fs=',' --rs='<br>'\
+    | sort -u > input.txt
+\end{lstlisting}
+
+Where the splatter.py script is a simple python script that takes care of the splatter operation.
+
+\lstinputlisting[language=Python]{listings/Implementation/splatter.py} 
+
+\section{Field Weights optimization}

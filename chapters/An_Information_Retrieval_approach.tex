@@ -1,0 +1,85 @@
+\chapter{An Information Retrieval approach} % TODO: rename this chapter
+
+Information retrieval (IR) is the process of obtaining relevant information from a large dataset based on a user query. Traditional IR systems, such as search engines, rely on indexing and ranking techniques to efficiently retrieve documents that match user intent. One of the core challenges in IR includes handling ambiguous queries, managing vast and evolving datasets, and optimizing search algorithms to balance both precision and recall, the two main relevant metrics, which are graphically represented in \autoref{fig:precision-recall}.
+
+\begin{figure}
+    \centering
+    \includesvg{images/An_Information_Retrieval_approach/Precisionrecall.svg}
+    \caption{Precision and Recall By Walber - Own work, CC BY-SA 4.0} 
+    \label{fig:precision-recall}
+\end{figure}
+
+In the context of CPE matching, well known IR techniques can be used as an automated retrieval method to help streamline the process of mapping each software name to a CPE record. However, several challenges arise due to variations in software naming conventions, versioning schemes, and vendor rebranding.  
+
+One of the fundamental issues in CPE matching stems from the gap between the retrieval need and the actual query. Ideally, a query should accurately reflect the intended software name, but in practice, it often contains noise such as extra metadata, file paths, or system-specific identifiers that degrade matching performance. As a result, traditional search methods may fail to retrieve relevant results, necessitating ad-hoc IR strategies that can handle noisy inputs and ambiguous queries while maintaining accuracy.
+
+\section{Terminology}
+We will employ some terminology taken directly from Information Retrieval Theory which is briefly introduced here and accompanied by its interpretation in the context of CPE matching.
+
+The information retrieval process is the act of retrieving the most relevant CPEs, given a query.
+A query is the string representation of an installed software which is present in an asset inventory. This may contain additional information like the vendor, the version, the target platform, and sometimes even reference links to the project website or repository, which contribute to the overall noise and must be specifically handled.
+The target retrieval information, a CPE in this case, is historically also called a document, and the collection of all known documents is called a collection or a corpus. Although there exist multiple collections of CPEs, we will consider only the one officially maintained by NIST.
+Queries and documents are composed of terms: given that both are expected to contain only software names, we are not dealing with a specific language grammar, which removes the need of any natural-language stemming process. 
+However, the concept of stemming can be defined in this context to represent a substring of a CPE object, which can be interpreted as a subset of the corresponding WFN containing only certain attributes.
+This can be useful, for example, to evaluate the matching performance on just the most relevant features.
+
+\section{Naive solution: fuzzy finder}
+
+An initial attempt at CPE matching involved using a fuzzy search within the string representations of all known CPEs. This method leverages string similarity metrics, like the Levenshtein distance \href{https://mi.mathnet.ru/dan31411}{https://mi.mathnet.ru/dan31411} or the Jaro–Winkler distance \href{https://eric.ed.gov/?id=ED325505}{https://eric.ed.gov/?id=ED325505}, to identify approximate matches, allowing for minor variations in input queries.  
+
+However, this approach lacks sufficient control over what constitutes a valid match. String similarity alone does not necessarily align with retrieval needs, as it treats all character variations equally, regardless of their semantic importance. Additionally, increasing query specificity paradoxically reduces the likelihood of finding a match, as the algorithm rigidly enforces similarity thresholds. These limitations highlight the need for a more structured approach that considers both the hierarchical nature of CPEs and the inherent noise present in software inventory data.
+
+\section{TF-IDF based systems}
+The CPE guesser solution presented in \autoref{sec:cpe-search} shows promising results but limits itself to only consider term frequency. A more advanced approach is to use the TF-IDF weighting scheme, which is a well-known technique in information retrieval to estimate the relevance of a document to a query.
+
+The TF-IDF weighting scheme is based on the idea that the importance of a term in a document is proportional to the number of times it appears in the document (term frequency) and inversely proportional to the number of documents containing the term (inverse document frequency). This approach helps identify terms that are both frequent in a document and rare across the entire collection, making them more likely to be relevant to a query.
+This is partially helped by the fact that, for marketing reasons, software names are generally chosen to be as distinctive as possible, which means that the most relevant terms are generally the ones that are the most rare.
+
+TF-IDF methods make use of the binary relevance assumption, which states that relevance is a binary property of the document, given an information need only. Because an information retrieval system cannot know the values of the relevance property of each document, the information available to the system is at best probabilistic. This leads to the Probability Ranking Principle which asserts that if retrieved documents are ordered by decreasing probability of relevance on the data available, then the system's effectiveness is the best that can be obtained for the data.
+
+
+\section{Okapi BM25}
+The BM25 weighting scheme, often called Okapi weighting, after the system in which it was first implemented, was developed as a way of building a probabilistic model sensitive to term frequency and document length while not introducing too many additional parameters into the model \cite{sparck_jones_statistical_1972}
+
+Okapi BM25 is a ranking function widely used in information retrieval to estimate the relevance of a document to a given query by following a probabilistic relevance model. 
+BM25 refines traditional term-weighting schemes by considering both term frequency and inverse document frequency while normalizing for document length. The core idea is that a term appearing frequently in a document increases its relevance, but with diminishing returns to prevent excessively long documents from being unfairly favored. At the same time, rare terms contribute more to relevance than common ones, ensuring that frequently occurring words do not dominate the ranking. By striking a balance between these factors, BM25 provides an effective and adaptable method for ranking search results, making it a strong baseline for many modern retrieval systems.
+
+
+In the context of CPE matching, a CPE document $\bar d$ is said to belong to a CPE collection $C$. We may regard this as a vector $\bar d = (d_1, \cdots, d_V)$, where $d_j$ denotes the \textit{term frequency} of the $j$th term in $\bar d$ and $V$ is the total number of terms in the vocabulary.
+In order to score such a document against a query, a term weighting function $w_j(\bar d, C)$ is defined which in the case of BM25 is
+$$
+%w_j(\bar d, C) := \underbrace{\frac{(k_1 + 1) d_j}{k_1((1-b)+b\frac{dl}{avdl})+d_j}}_{TF}\cdot \underbrace{\log\frac{N}{df_j}}_{IDF}
+w_j(\bar d, C) := \frac{(k_1 + 1) d_j}{k_1((1-b)+b\frac{dl}{avdl})+d_j}\log\frac{N}{df_j}
+$$
+where $N$ is the number of documents in the corpus, $df_j$ is the document frequency of term $j$, $dl$ is the document length, $avdl$ is the average document length across the collection, and $k_1$ and $b$ are free parameters. A $k_1$ value of $0$ corresponds to a binary model (no term frequency), and a large value corresponds to using raw term frequency. $b$ is another tuning parameter ($0 \le b \le 1$) which determines the scaling by document length: $b=1$ corresponds to fully scaling the term weight by the document length, while $b=0$ corresponds to no length normalization. Experiments have shown reasonable values are to set $k_1$ to  a value between 1.2 and 2 and $b = 0.75$\cite{manning_introduction_2008}.
+
+The document score is then obtained by adding the document term weights of terms matching the software name query $q$:
+$$
+W(\bar d, q, C) = \sum_j w_j (\bar d, C) \cdot q_j
+$$
+
+The BM25 term weighting formula has been used quite widely and quite successfully across a range of collections and search tasks. Especially in the TREC evaluations, it performed well and has been widely adopted by many groups.
+
+\subsection{BM25F}
+\label{sec:bm25f}
+While BM25 operates on unstructured text, BM25F extends this approach by incorporating structured fields, allowing different components of a document to contribute differently to the final ranking score. This is particularly useful in the context of CPE matching, where software entries follow a predefined structure consisting of distinct fields such as vendor, product, and version. Rather than treating a CPE as a single block of text, BM25F enables a more refined approach by assigning different weights to these components. %Matches in the product field, for example, are often more informative than matches in the vendor field, while version information plays a crucial role in disambiguating otherwise similar entries.
+
+By leveraging this structured representation, BM25F improves retrieval performance by reducing the impact of noisy queries. Software names extracted from asset inventories frequently contain additional metadata, such as platform information or distribution details, which do not always appear in the CPE representation. A structured ranking approach mitigates this issue by ensuring that the most relevant fields drive the retrieval process. This ultimately enhances ranking precision, leading to more accurate matches and fewer irrelevant results compared to simpler text-based methods like fuzzy searching or standard BM25.
+
+In CPE matching, certain fields carry more significance than others. The vendor and product fields are the most critical, as they directly identify the software, whereas fields such as language or software edition are less essential but can still provide useful distinctions. Rather than completely excluding these less relevant fields, we assign them lower weights, ensuring that they contribute to the ranking only when necessary for disambiguation. This approach helps refine matches without allowing minor variations, such as language or edition, to dominate the retrieval process.
+
+To compute the total relevance score, we follow the methodology outlined in \cite{robertson_simple_2004}, which highlights the limitations of naive linear combination of scores. Simply averaging or linearly combining scores from different fields results in a potential violation of the nonlinear properties of term frequency weighting, as it fails to capture the varying importance of each component. Instead, a more advanced aggregation formula is employed, preserving the individual contributions of each field while ensuring that the most relevant matches are ranked appropriately. This structured scoring method enhances retrieval effectiveness, improving both precision and recall in CPE matching.
+
+Specifically, we now consider a collection with a set of field types $T=\{1, \cdots, f, \cdots, K\}$. For example $f=1$ may denote the Vendor, $f=2$ Product etc. A structured document $\mathbf d$ can be written as a vector of $K$ text-fields:
+$$
+\mathbf{d} = (\bar d[1], \bar d[2], \dots, \bar d[f], \dots \bar d [K])
+$$
+For example, $\bar d[1]$ would represent the vendor of the CPE $d$, $\bar d[2]$ the product, etc.
+
+Each field $\bar d[f]$ may be seen as a vector of term frequencies $(d[f]_j)_{j=1..V}$, where $V$ is the size of the Vocabulary containing all known terms. $\mathbf d$ is thus a matrix (a vector of vectors). The collection of structured CPE documents is then referred to as $\mathbf{C}$. Finally, in order to weight fields differently, the field weight are defined as a vector $\mathbf v \in \mathcal R^K$.
+The problem is therefore transformed into extending the standard ranking function $W(\bar d, q, C)$ into a new function $W(\mathbf{d}, q, \mathbf{C}, \mathbf v)$
+\subsection{The lack of a standard dataset}
+
+A significant challenge in evaluating matching performance arises from the inherent characteristics of software identification. The dynamic evolution of the software ecosystem, coupled with the proliferation of diverse implementations and versions for nominally identical software products, precludes the existence of a universally accepted, standardized dataset suitable for benchmarking name matching algorithms in this domain. Consequently, a custom-built evaluation dataset becomes a necessary recourse for performance assessment.
+
+For this purpose, a standard implementation of BM25 had been used in an interactive way to collect a dataset from real-world asset inventories. This dataset was then used to evaluate the performance of the BM25F implementation. The dataset was collected by manually selecting a set of software names from the asset inventory and querying the CPE collection to identify the corresponding CPE records. This process was repeated for a diverse range of software names, including both common and less prevalent entries, to ensure a comprehensive evaluation of the matching algorithm. The resulting dataset was then used to assess the accuracy and efficiency of the BM25F implementation, providing valuable insights into its retrieval capabilities and potential areas for improvement.

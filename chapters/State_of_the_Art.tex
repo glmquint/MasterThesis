@@ -1,0 +1,119 @@
+\chapter{State of the art}
+We present a brief overview of the most relevant works in the field of software inventory management and vulnerability assessment.
+
+\section{SCAP}
+
+The Security Content Automation Protocol (SCAP) by NIST is a method for using specific standards to enable automated vulnerability management, measurement, and policy compliance evaluation of systems deployed in an organization, including e.g., FISMA (Federal Information Security Management Act, 2002) compliance. The National Vulnerability Database (NVD) is the U.S. government content repository for SCAP. An example of a SCAP implementation is OpenSCAP \href{https://www.open-scap.org/}{https://www.open-scap.org/}. 
+
+SCAP is a suite of tools that have been compiled to be compatible with various protocols for things like configuration management, compliance requirements, software flaws, or vulnerabilities patching. Accumulation of these standards provides a means for data to be communicated between humans and machines efficiently. The objective of the framework is to promote a communal approach to the implementation of automated security mechanisms that are not monopolized
+
+SCAP defines how the CVE (Common Vulnerabilities and Exposures) and CPE (Common Platform Enumeration) standards (referred to as SCAP 'Components') are combined together with other components, such as CVSS (Common Vulnerability Scoring System), CCE (Common Configuration Enumeration), OVAL (Open Vulnerability and Assessment Language) and more.
+
+The main disadvantage linked with implementing SCAP comes from the need for SOCs to provide an additional asset inventory management service, because OpenSCAP relies on its internal asset inventory scanner. This is often unfeasible in practice, for responsibility reasons, as it is much more difficult to maintain control over devices that are primarily used outside the SOC's perimeter. 
+This solution is preferable only in case a SOC has complete control over a single client's inventory. For our wanted use-case, a more open approach is needed, which does not require a managed asset inventory and instead is capable of adapting to any inventory censing tool.  
+
+
+\section{NIST's NVD search for CPEs}
+\url{https://nvd.nist.gov/products/cpe/search}
+The CPE Name search retrieves exact matches and records containing the components specified in the user-provided CPE Name.
+
+A key limitation of this approach is its sensitivity to query specificity. Overly specific queries may yield no results, while underspecified queries can return an overwhelming number of candidates. Additionally, the reliance on a web service introduces latency, which may hinder real-time analysis and responsiveness.
+
+To better demonstrate the retrieval behavior, we'll take as an example the voluntarily ambiguous software sample \texttt{7-zip 9.20}, which is known to be present inside the database. This should not be taken as an extensive benchmark; instead is only used for demonstrating how the underlying algorithm performs.
+
+If we only specify the name part, we obtain $288$ matching records as shown in \autoref{fig:nvdsearch-7zip}: too many to be considered useful.
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{images/State_of_the_Art/NVDSearch_7-zip.png}
+    \caption{Too many records get returned with an under-specified query} 
+    \label{fig:nvdsearch-7zip}
+\end{figure}
+
+Only once we add the version information does the result set approaches a more manageable size of only 6 records, as shown in \autoref{fig:nvdsearch-7zip-920}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{images/State_of_the_Art/NVDSearch_7-zip-920.png}
+    \caption{Only 6 records get returned if the query is extremely well polished} 
+    \label{fig:nvdsearch-7zip-920}
+\end{figure}
+
+Although we can observe that a minor inconvenience arises from the ranking choice. 
+This is debatable, but in this specific instance, a more precise CPE like \texttt{cpe:2.3:a:7-zip:7-zip:9.20:*:*:*:*:windows:*:*} gets ranked higher than a broader one like \texttt{cpe:2.3:a:7-zip:p7zip:9.20:*:*:*:*:*:*:*} even though no trace of the target platform (in this case, windows) is present in the original query.
+
+Finally, we can observe the matching behavior in case the queried software version is more recent than the one tracked in the database. This is actually a very frequent condition, as the CPE database is often incapable of keeping track with every new software release in a timely manner and instead is often trailing behind a bit. It is not uncommon for the CPE database maintainer to delegate the appropriate version update for when a corresponding CVE gets released. Of course, security analysts should instead try to stay in front of the news as much as possible.
+
+As shown in \autoref{fig:nvdsearch-7zip-999}, the user receives no results if the specified version is not yet present in the database. Again, it could be argued that a retrieval system should output no results if it considers that a sample is indeed missing, but for the specific use case in which such a system would be utilized, this could result in a serious vulnerability problem.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/State_of_the_Art/NVDSearch_7-zip-999.png}
+    \caption{No results get returned for a yet-to-be released version of an existing product} 
+    \label{fig:nvdsearch-7zip-999}
+\end{figure}
+
+\section{CPE guesser}
+\url{https://github.com/cve-search/cpe-guesser}
+
+The CPE Guesser can be executed completely locally but does not take software versions into account and it too implements an AND-based matching policy. As a result, more specific queries yield fewer results, as all specified components must be present in a match. This can limit recall, making it difficult to retrieve relevant CPE entries when dealing with incomplete or noisy input data.
+
+As we can see in this example:
+
+\begin{minipage}{\linewidth}
+\label{lst:cve-search}
+\begin{lstlisting}[language=Bash, caption=]
+    curl -s -X POST https://cpe-guesser.cve-search.org/search -d "{\"query\": [\"7-zip\"]}" | jq .
+[
+  [
+    120218,
+    "cpe:2.3:a:7-zip:7-zip"
+  ],
+  [
+    115272,
+    "cpe:2.3:a:7-zip:p7zip"
+  ],
+  [
+    66076,
+    "cpe:2.3:a:7-zip:7zip"
+  ]
+]
+\end{lstlisting}
+\end{minipage}
+A correct set of results get returned, but by specifying the version too:
+\begin{lstlisting}
+    curl -s -X POST https://cpe-guesser.cve-search.org/search -d "{\"query\": [\"7-zip\", \"9.20\"]}" | jq .
+[] 
+\end{lstlisting}
+The number of returned CPEs drops to zero. This is undesirable, as more information in the query, particularly if relevant, should not impact retrieving performances. 
+
+\section{CPE search}
+\label{sec:cpe-search}
+\url{https://github.com/ra1nb0rn/cpe_search}
+
+The CPE Search represents a significant improvement by introducing a term-frequency (TF)-based approach followed by a cosine-similarity evaluation, allowing for more flexible matching. A major advantage is its ability to search across different software versions, enhancing recall and relevance.  
+
+However, this method struggles with very simple queries. In such cases, cosine similarity can work against the user, leading to suboptimal results. This limitation is demonstrated in the following example:
+
+\begin{lstlisting}[language=Bash, caption=]
+./cpe_search.py -v -q "7-zip"
+[]
+\end{lstlisting}
+actually brings no results, but internally we can examine the partial result:
+\begin{lstlisting}[language=Bash, caption=]
+[('cpe:2.3:a:7-zip:7zip:9.20:*:*:*:*:*:*:*', 0.4765806309916866)]
+\end{lstlisting}
+which doesn't get output because the cosine similarity isn't above the one half threshold.
+If we extend the query by including the version as well, we obtain
+\begin{lstlisting}[language=Bash, caption=]
+./cpe_search.py -v -q "7-zip 9.20"
+cpe:2.3:a:7-zip:7-zip:9.20:*:*:*:*:*:*:*
+[('cpe:2.3:a:7-zip:7-zip:9.20:*:*:*:*:*:*:*', 0.9940527304721751),
+ ('cpe:2.3:a:7-zip:7-zip:9.20:*:*:*:*:windows:*:*', 0.9334447481561471),
+ ('cpe:2.3:a:7-zip:7-zip:-:*:*:*:*:*:*:*', 0.8988776375836615)]
+\end{lstlisting}
+which correctly retrieves the right CPEs. This isn't ideal, as the most important feature of the CPE (i.e. the software name) gets matched but less important ones, like the version, are required to complete its retrieval. We would much prefer for the matching algorithm to somehow give more relevance to the more important parts of the query.
+
+\section{Summary}
+Each of the existing CPE matching approaches presents distinct advantages and limitations. The CPE Name search provides precise matches but struggles with overly specific or generic queries, leading to either no results or an excessive number of candidates. The CPE Guesser simplifies the process by disregarding versions but enforces strict AND-based matching, which can overly narrow the results. The CPE Search improves flexibility with a TF-based approach and version-aware searching, yet it remains vulnerable to failure in simple queries due to the unintended effects of cosine similarity. 
+
+In conclusion, we can assess that the quality of all proposed solutions is directly correlated with the cleanness and precision of the provided data. The unrealistic expectations to meet this requirement in face of an unknown software stack format, means that a human operator is often required to form an ad-hoc query for each sample or parse the large amount of results, which greatly degrades the wanted level of automation. These challenges highlight the need for a more robust and adaptive solution capable of balancing precision, recall, and computational efficiency while facing very noisy inputs.

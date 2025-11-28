@@ -1,0 +1,78 @@
+\chapter{Results}
+\section{Matching performances}
+The evaluation of the CPE matching system is crucial to assess its effectiveness in generating accurate and timely CVE alerts. The primary metrics for evaluating the system's performance are precision and recall. While both are essential, recall is of paramount importance in the security context. False negatives, where the system fails to match a software name with its correct CPE, can lead to missed vulnerability alerts, potentially exposing systems to exploitation. In contrast, false positives, where the system incorrectly matches a software name with a CPE, are less critical.
+
+The goal is to maximize recall while maintaining an acceptable level of precision. By focusing on maximum recall and analyzing the corresponding precision, we can effectively assess the system's suitability for delivering timely and relevant CVE alerts. We will explore different configurations and algorithms to identify the point at which recall is maximized. At this point, we will analyze the corresponding precision to understand the trade-off between comprehensive coverage and alert relevance.
+
+In the context of CPE matching, we define precision and recall as follows:
+
+\begin{itemize}
+    \item Precision: Out of all the CPEs the system matched to a given software name, what proportion were actually correct? High precision means fewer incorrect CPE matches are suggested.
+    \item Recall: Out of all the correct CPEs that should have been matched to a given software name, what proportion did the system actually match? High recall means the system successfully identifies most of the relevant CPEs.
+\end{itemize}
+
+A false negative in our system occurs when the system fails to match a software name with its correct CPE, leading to a missed CVE alert.  This is a critical failure because it leaves the user unaware of potential vulnerabilities affecting their systems.  In contrast, a false positive occurs when the system incorrectly matches a software name with a CPE.  This leads to sending an alert that is ultimately not relevant.
+
+While both types of errors are undesirable, the consequences of false negatives are far more severe.  Missing a critical vulnerability alert can have significant security ramifications, potentially leading to exploitation and breaches.  False positives, on the other hand, are less damaging.  They might cause temporary inconvenience or alert fatigue, but they do not inherently create security vulnerabilities.  In essence, it is better to lean on the side of caution and generate some false positives than to miss crucial vulnerabilities.
+
+While minimizing false negatives (and maximizing recall) is our primary objective, we must also be mindful of the impact of excessive false positives.  Too many irrelevant alerts can lead to alert fatigue, where users become desensitized or even disregard alerts altogether, potentially negating the benefits of the system.  
+
+Therefore, while we prioritize recall, we also aim to achieve a reasonable level of precision to maintain user trust and the long-term usability of the alerting system.  The goal is to strike a balance where we maximize vulnerability coverage (high recall) while minimizing unnecessary noise (acceptable precision).
+
+We will now discuss the achieved performances of the developed algorithm in term of how well it can match a given software name
+This task is particularly difficult for multiple reasons.
+The lack of a standardized dataset means that a limited number of samples are available to extract information. Furthermore, the breath of the underlying software name distribution is pretty limited, given that it comes from a small number of asset inventories.
+Another problem that makes it more difficult to compare this information retrieval system with those already present in literature arises from the very specific context in which it is applied. Common search engines often deal with a very large pool of candidate documents, often with a varying degree of relevance. By contrast, in CPE matching, one software name should ideally match only one CPE. It is possible that a human evaluator defines more than one CPE as relevant, but those cases should be considered  as rare and more of a byproduct of an under-specified query.
+Finally, information retrieval systems are often assumed to be used in front of a human user, which then selects retrieved results with higher probability if they are ranked higher in the final list.
+CPE matching, in the other hand, should be considered as much as an automatic process as possible. Therefore, once a certain criteria is chosen to select which CPEs should be returned, it is no longer important the original order in which they originally appeared.
+For this reason, we will first analyze the matching performance of the final algorithm using rank-based metrics, in order to more easily get a sense for the base ranker performance, and subsequently we will employ set-based metrics to assess the final performance obtained by the automatic matching process.
+\subsection{Ranking based evaluation}
+For the ranking-based evaluation we employ the precision-recall curve.
+
+A precision-recall curve is a per query plot of the precision (y-axis) and recall (x-axis) for different k-levels. The area under the curve (AUC) is a measure of the overall performance of the system. A higher AUC indicates better performance, with a maximum value of 1.0 representing perfect precision and recall. By examining the curve, we can identify the optimal threshold that maximizes both precision and recall. This threshold represents the best balance between alert relevance and coverage, ensuring that the system generates timely and accurate alerts while minimizing false positives and negatives.
+
+To evaluate the overall performance of the system across multiple queries, we calculate the macro-average precision and recall at different k-levels.
+This allows us to assess the system's performance in a more general context, providing insights into how well it performs across a range of queries and thresholds.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{images/Results/PR-curve.png}
+    \caption{Precision-recall curve for the CPE matching system} 
+    \label{fig:pr-curve}
+\end{figure}
+
+In particular, the two curves shown in \autoref{fig:pr-curve} present two different ways in which a CPE is considered to be a correct match. % TODO: continue from here (add images)
+Exact matches require for the entire CPE to be matching, so all CPE fields like vendor, product, version, edition and so on should be exactly equal to those reported by the human evaluator. 
+The second line only requires for the vendor and product fields to be equal. 
+The reason for this distinction comes from the way in which the testing database has been constructed. 
+Following the pseudo-relevancy strategy, the same retrieval algorithm has been by a human evaluator, which given a same query, would select which of the returned records are actually relevant. 
+This implies that the testing dataset is dependant on the time in which it has been generated. 
+Some of the software that were used as samples did not yet have an updated version in the official CPE database. 
+The final retrieval system should ideally return the exact CPE or alternatively its most recent version, therefore the human evaluators were instructed to still consider an out-to-date version as a match if both vendor and product were relevant. 
+During performance evaluation, however, the CPE database used was newer than the one used during the testing dataset creation. 
+This leads to the possibility that a newer CPE, which would be a better match for a given query, would result incorrect if we were to consider a full CPE equivalence.
+
+Precision recall points are considered for a varying number of considered results: top 1 result would be k=1, top 2 results would be k=2 and so on.
+Precision and recall at each value of K are a property of each query. To obtain a general overview of the global retrieval performance across multiple queries, a macro average is performed for each k level. It is important to note that values are normalized to their recall level before being averaged.
+We can clearly see the common pattern of a precision recall curve: with an increase in k we observe both an increase in the general recall and a decrease in the general precision.
+This is already a clear indicator that by considering more results we have a net effect of polluting the returned set of CPEs. If a good match is to be found, it generally happens in the first results, otherwise the majority of returned records is not relevant.
+Considering the exact match, we can make some considerations on the 90\% confidence intervals that are shown on both axis. We can observe that the variation in precision shrinks with an increasing K. This is again explainable by the very small recall base of each query: by considering more and more results, the precision tends to be equal to 1/n. On the contrary, recall generally maintains the same dispersion. This is implied by the fact that the wanted CPEs are either immediately found or they are more likely never returned. Therefore queries are almost always completely matched or completely failed.
+Finally, we can assess that the reason the dispersion in recall shrinks in the case of partial CPE match is only due to the fact that results are being squashed to the optimal value of perfect recall, i.e. recall=1.
+\subsection{Set based evaluation}
+The set-based evaluation is performed by considering the top K results for each query and calculating the precision and recall of the returned set.
+The precision is calculated as the number of correct CPEs in the returned set divided by the total number of returned CPEs. Recall is calculated as the number of correct CPEs in the returned set divided by the total number of correct CPEs in the dataset.
+The F1 score is the harmonic mean of precision and recall, providing a single metric to evaluate the system's performance. A higher F1 score indicates better performance, with a maximum value of 1.0 representing perfect precision and recall.
+The F1 score is a useful metric for evaluating the system's overall effectiveness, providing a balanced assessment of precision and recall. By examining the F1 score, we can determine the optimal threshold that maximizes both precision and recall, ensuring that the system generates timely and accurate alerts while minimizing false positives and negatives.
+The F1 score is calculated for different values of K, allowing us to assess the system's performance across a range of thresholds. By analyzing the F1 score at different K levels, we can identify the optimal threshold that maximizes both precision and recall, ensuring that the system generates timely and accurate alerts while minimizing false positives and negatives.
+
+Empirically guided improvements
+
+\subsection{from bag of word to term position importance}
+\subsection{from k10 to maximum separating gap}
+\subsection{limit 3 results in above gap group}
+\section{Time performances}
+((Considerations with the python case with a time limit of 24H, and estimates on the largest asset inventory achievable))
+
+%\section{Relevance evaluation of the final alarms}
+%the proposed approach doesn't take into consideration the popularity of a software, therefore it is possible that a very obscure software name wrongly matches a very popular one, flooding the final user with wrong alerts
+%For this reason, a final evaluation is performed on the actual alerts that have been sent using the CPE stack that has been retrieved by the proposed algorithm
